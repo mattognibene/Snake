@@ -15,9 +15,9 @@
 (define HEAD (rectangle S-WIDTH S-HEIGHT "solid" "red"))
 (define BODY (rectangle S-WIDTH S-HEIGHT "solid" "lime green"))
 (define APPLE (rectangle S-WIDTH S-HEIGHT "solid" "red"))
+(define FONT-SIZE 30)
+(define FONT-COLOR "white")
 
-;Game Constants
-(define VEL 10)
 
 ;A GameState is one of the following:
 ; - 'new
@@ -37,15 +37,43 @@
 ;Signifies the gmae has ended
 (define-struct gameover[end-state])
 
+;Game Constants
+(define VEL 10)
+(define START (make-game (list (make-posn (/ GAME_WIDTH 2) (/ GAME_HEIGHT 2))
+                               (make-posn (- (/ GAME_WIDTH 2) VEL) (/ GAME_HEIGHT 2)))
+                         (make-vel VEL 0)
+                         (make-posn (random GAME_WIDTH) (random GAME_HEIGHT))))
+
 ;main
 ;GameState -> GameState
 ;big bang function for the game
-(define (start-game gs)
+(define (main gs)
   (big-bang gs
-            [on-tick update/game]
-            [to-draw draw-game]
+            [on-tick update]
+            [to-draw draw]
             [on-key key-listener]))
 
+;Top Big Bang Functions
+;GameState->GameState
+(define (update gs)
+  (cond
+    [(symbol? gs)gs]
+    [(game? gs) (update/game gs)]
+    [(gameover? gs) gs]))
+
+;GameState->Image
+(define (draw gs)
+  (cond
+    [(symbol? gs)(draw-new gs)]
+    [(game? gs) (draw-game gs)]
+    [(gameover? gs) (draw-gameover gs)]))
+
+;GameState Key -> GameState
+(define (key-listener gs k)
+  (cond
+    [(symbol? gs) (start-game gs k)]
+    [(game? gs) (key-listener/game gs k)]
+    [(gameover? gs) (start-game gs k)]))
 ;BigBang Functions for Game GameState
 ;Game->GameState
 (define (update/game g)
@@ -54,33 +82,6 @@
     (if (snake-collided? new-game)
         (make-gameover new-game)
         new-game)))
-
-;Posn Posn -> Boolean
-;checks to see if the snake has crashed into itself
-(define (collision? a b)
-  (and(<(abs(- (posn-x a)
-               (posn-x b)))
-        10)
-      (<(abs(- (posn-y a)
-               (posn-y b)))
-        10)))
-
-;Game -> Boolean
-#;(define (snake-collided? g)
-    (local(
-           (define (snake-collided?/snake s)
-             (cond
-               [(empty? (rest s)) #false]
-               [(cons? s) (if (collision? (last s) (first s))
-                              #true
-                              (snake-collided? (rest s)))])))
-      (snake-collided?/snake (game-snake g))))
-(define (snake-collided? g)
-  (cond
-    [(empty? (rest (game-snake g))) #false]
-    [(cons? (game-snake g)) (if (collision? (last (game-snake g)) (first (game-snake g)))
-                                #true
-                                (snake-collided? (make-game (rest (game-snake g)) (game-v g) (game-apple g))))]))
 
 ;Game -> Game
 ;Updates the snake by:
@@ -111,6 +112,26 @@
                  (make-posn (random GAME_WIDTH) (random GAME_HEIGHT)))
       g))
 
+;Posn Posn -> Boolean
+;checks to see if the snake has crashed into itself
+(define (collision? a b)
+  (and(<(abs(- (posn-x a)
+               (posn-x b)))
+        10)
+      (<(abs(- (posn-y a)
+               (posn-y b)))
+        10)))
+
+;Game -> Boolean
+(define (snake-collided? g)
+  (cond
+    [(empty? (rest (game-snake g))) #false]
+    [(cons? (game-snake g)) (if (collision? (last (game-snake g)) (first (game-snake g)))
+                                #true
+                                (snake-collided? (make-game (rest (game-snake g))
+                                                            (game-v g)
+                                                            (game-apple g))))]))
+
 ;Snake Vel -> Snake
 ;adds a part to the tail of the snake
 (define (add-part s v)
@@ -122,12 +143,8 @@
      (cons (make-posn(- (posn-y (first s)) (vel-dy v)) (posn-y (first s)))
            s)]))
 
-;Posn Posn->Boolean
-
-
 ;Snake->Snake
 ;takes into account the snake going out of bound
-
 (define (fix-oob s)
   (local(
          ;Posn->Posn
@@ -148,11 +165,14 @@
   (place-image APPLE
                (posn-x (game-apple g))
                (posn-y (game-apple g))
-               (foldr (lambda (x img) (place-image BODY (posn-x x) (posn-y x) img)) WORLD
-                      (game-snake g))))
+               (draw-snake (game-snake g))))
+
+;Snake -> Image
+(define (draw-snake s)
+  (foldr (lambda (x img) (place-image BODY (posn-x x) (posn-y x) img)) WORLD s))
 
 ;Game KeyEvent ->Game
-(define (key-listener g key)
+(define (key-listener/game g key)
   (cond
     [(string=? key "w")
      (make-game (game-snake g) (make-vel 0 (* -1 VEL)) (game-apple g))]
@@ -163,4 +183,34 @@
     [(string=? key "d")
      (make-game (game-snake g) (make-vel VEL 0) (game-apple g))]
     [else g]))
-(start-game (make-game (list (make-posn 10 10) (make-posn 10 30) (make-posn 10 50) (make-posn 10 70)) (make-vel 0 VEL) (make-posn 150 200)))
+
+;Gameover Bigbang functions
+
+;Gameover -> Image
+(define (draw-gameover go)
+  (place-image (above (text "GAME OVER" FONT-SIZE FONT-COLOR)
+                      (text (string-append "SCORE: "
+                                           (number->string
+                                            (length(game-snake(gameover-end-state go)))))
+                            FONT-SIZE FONT-COLOR)
+                      (text "PRESS ANY KEY TO START NEW GAME" FONT-SIZE FONT-COLOR))
+               (/ GAME_WIDTH 2)
+               (* 3 FONT-SIZE)
+               (draw-snake (game-snake(gameover-end-state go)))))
+
+;GameState Key -> GameState
+(define (start-game gs key)
+  START)
+
+;New BigBang functions
+;New -> Image
+(define (draw-new n)
+  (place-image (above(text "SNAKE!" FONT-SIZE FONT-COLOR)
+                     (text "PRESS ANY KEY TO START" FONT-SIZE FONT-COLOR))
+               (/ GAME_WIDTH 2)
+               FONT-SIZE
+               (draw-snake (game-snake START))))
+
+
+; BEGIN GAME ;
+(main 'new)
