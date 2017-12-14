@@ -106,27 +106,27 @@
 ;Game->Game
 ;Adds a Part to the snake and creates a new apple if the head is on the current apple
 (define (update/apple g)
-  (if (collision? (game-apple g) (last (game-snake g)))
+  (if (collision? (game-apple g) (last (game-snake g)) S-WIDTH)
       (make-game (add-part(game-snake g) (game-v g))
                  (game-v g)
                  (make-posn (random GAME_WIDTH) (random GAME_HEIGHT)))
       g))
 
-;Posn Posn -> Boolean
+;Posn Posn Number -> Boolean
 ;checks to see if the snake has crashed into itself
-(define (collision? a b)
+(define (collision? a b thresh)
   (and(<(abs(- (posn-x a)
                (posn-x b)))
-        10)
+        thresh)
       (<(abs(- (posn-y a)
                (posn-y b)))
-        10)))
+        thresh)))
 
 ;Game -> Boolean
 (define (snake-collided? g)
   (cond
     [(empty? (rest (game-snake g))) #false]
-    [(cons? (game-snake g)) (if (collision? (last (game-snake g)) (first (game-snake g)))
+    [(cons? (game-snake g)) (if (collision? (last (game-snake g)) (first (game-snake g))(/ S-WIDTH 2))
                                 #true
                                 (snake-collided? (make-game (rest (game-snake g))
                                                             (game-v g)
@@ -174,13 +174,13 @@
 ;Game KeyEvent ->Game
 (define (key-listener/game g key)
   (cond
-    [(string=? key "w")
+    [(and (string=? key "w") (not(=(vel-dy(game-v g))VEL)))
      (make-game (game-snake g) (make-vel 0 (* -1 VEL)) (game-apple g))]
-    [(string=? key "a")
+    [(and(string=? key "a") (not(=(vel-dx(game-v g))VEL)))
      (make-game (game-snake g) (make-vel (* -1 VEL) 0)(game-apple g))]
-    [(string=? key "s")
+    [(and (string=? key "s") (not(=(vel-dy(game-v g))(* -1 VEL))))
      (make-game (game-snake g) (make-vel 0 VEL)(game-apple g))]
-    [(string=? key "d")
+    [(and(string=? key "d") (not(=(vel-dx(game-v g))(* -1 VEL))))
      (make-game (game-snake g) (make-vel VEL 0) (game-apple g))]
     [else g]))
 
